@@ -7,76 +7,71 @@ import io.netty.channel.Channel;
 import io.netty.channel.EventLoopGroup;
 import io.netty.handler.traffic.AbstractTrafficShapingHandler;
 import io.netty.handler.traffic.GlobalChannelTrafficShapingHandler;
-import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.GenericFutureListener;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * @author Vinicius Carvalho
  */
+@RequiredArgsConstructor
+@Slf4j
 public abstract class AbstractProxyServer implements ProxyServer {
 
-	protected final ProxyDefinition definition;
-	protected AbstractTrafficShapingHandler trafficHandler;
-	protected Channel serverChannel;
-	protected volatile boolean running = false;
-	private Logger logger = LoggerFactory.getLogger(getClass());
+    @Getter
+    protected final ProxyDefinition definition;
+    protected AbstractTrafficShapingHandler trafficHandler;
+    protected Channel serverChannel;
+    protected volatile boolean running = false;
 
-	public AbstractProxyServer(ProxyDefinition definition) {
-		this.definition = definition;
-	}
+    protected abstract Channel doStart(EventLoopGroup bossGroup, EventLoopGroup workerGroup);
 
+    @Override
+    public void start(EventLoopGroup bossGroup, EventLoopGroup workerGroup) {
+        createTrafficHandler(workerGroup);
+        this.serverChannel = doStart(bossGroup, workerGroup);
+        running = true;
+        definition.setActive(true);
+    }
 
-	protected abstract Channel doStart(EventLoopGroup bossGroup, EventLoopGroup workerGroup);
+    @Override
+    public void stop() {
+        if (serverChannel != null && running) {
+            log.info("Shutting down server: {} on port {}", definition.getId(), definition.getLocalPort());
+            serverChannel.close().addListener(future -> {
+                running = false;
+                definition.setActive(false);
+                serverChannel = null;
+                log.info("Server {} shutdown complete", definition.getId());
+            });
+        }
+    }
 
-	@Override
-	public void start(EventLoopGroup bossGroup, EventLoopGroup workerGroup) {
-		createTrafficHandler(workerGroup);
-		this.serverChannel = doStart(bossGroup, workerGroup);
-		running = true;
-		definition.setActive(true);
-	}
+    public ConnectionStats getStats() {
 
-	@Override
-	public void stop() {
-		if(serverChannel != null && running){
-			logger.info("Shutting down server: {} on port {}",definition.getId(),definition.getLocalPort());
-			serverChannel.close().addListener(new GenericFutureListener<Future<? super Void>>() {
-				@Override
-				public void operationComplete(Future<? super Void> future) throws Exception {
-					running = false;
-					definition.setActive(false);
-					serverChannel = null;
-					logger.info("Server {} shutdown complete",definition.getId());
-				}
-			});
-		}
-	}
+        // Return default stats if not started
+        if (!running) {
+            return new ConnectionStats(0, 0);
+        }
 
-	public ConnectionStats getStats(){
-		if(!running)
-			return new ConnectionStats(0,0);
+        return new ConnectionStats(trafficHandler.trafficCounter().lastWrittenBytes(), trafficHandler.trafficCounter().lastReadBytes());
 
-		return new ConnectionStats(trafficHandler.trafficCounter().lastWrittenBytes(),trafficHandler.trafficCounter().lastReadBytes());
-	}
+    }
 
-	private void createTrafficHandler(EventLoopGroup workerGroup){
-		if(definition.getQos().getTrafficShaping() != null){
-			TrafficShaping tf = definition.getQos().getTrafficShaping();
-			this.trafficHandler = new GlobalChannelTrafficShapingHandler(workerGroup,tf.getWriteLimit(),tf.getReadLimit(),0,0,tf.getCheckInterval(),tf.getMaxTime());
-		}else{
-			this.trafficHandler = new GlobalChannelTrafficShapingHandler(workerGroup,0,0,0,0,1000,1000);
-		}
-	}
+    private void createTrafficHandler(EventLoopGroup workerGroup) {
 
-	@Override
-	public void configureTraffic(TrafficShaping config) {
-		this.trafficHandler.configure(config.getWriteLimit(),config.getReadLimit());
-	}
+        if (definition.getQos().getTrafficShaping() != null) {
+            TrafficShaping tf = definition.getQos().getTrafficShaping();
+            this.trafficHandler = new GlobalChannelTrafficShapingHandler(workerGroup, tf.getWriteLimit(), tf.getReadLimit(), 0, 0, tf.getCheckInterval(), tf.getMaxTime());
+        } else {
+            this.trafficHandler = new GlobalChannelTrafficShapingHandler(workerGroup, 0, 0, 0, 0, 1000, 1000);
+        }
 
-	@Override
-	public ProxyDefinition getDefinition() {
-		return definition;
-	}
+    }
+
+    @Override
+    public void configureTraffic(TrafficShaping config) {
+        this.trafficHandler.configure(config.getWriteLimit(), config.getReadLimit());
+    }
+
 }

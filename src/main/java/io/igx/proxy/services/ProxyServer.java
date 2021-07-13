@@ -9,9 +9,13 @@ import io.netty.channel.EventLoopGroup;
  * @author Vinicius Carvalho
  */
 public interface ProxyServer {
-	ProxyDefinition getDefinition();
-	ConnectionStats getStats();
-	void start(EventLoopGroup bossGroup, EventLoopGroup workerGroup);
-	void stop();
-	void configureTraffic(TrafficShaping config);
+    ProxyDefinition getDefinition();
+
+    ConnectionStats getStats();
+
+    void start(EventLoopGroup bossGroup, EventLoopGroup workerGroup);
+
+    void stop();
+
+    void configureTraffic(TrafficShaping config);
 }

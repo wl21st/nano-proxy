@@ -5,7 +5,7 @@ import io.igx.proxy.domain.ProxyDefinition;
 import io.igx.proxy.domain.TrafficShaping;
 import io.igx.proxy.services.NettyServerService;
 import io.igx.proxy.services.NettyServerServiceImpl;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TcpProxyApplicationTests {
 

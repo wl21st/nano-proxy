@@ -7,7 +7,7 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
